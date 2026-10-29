@@ -11,7 +11,6 @@
         #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #ffffff; gap: 15px; padding: 20px; text-align: center; }
         #setup h2 { color: #075e54; font-size: 1.6rem; }
         #setup input { padding: 14px; width: 280px; border: 2px solid #e0e0e0; border-radius: 25px; font-size: 1rem; text-align: center; outline: none; }
-        #setup input:focus { border-color: #00a884; }
         #setup button { padding: 12px 30px; background: #00a884; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.15); }
 
         #chat-window { display: none; flex-direction: column; height: 100vh; }
@@ -31,15 +30,12 @@
 </head>
 <body>
 
-    <!-- SCREEN 1: THE PORTAL GATEWAY -->
     <div id="setup">
-        <h2>Our Private Space</h2>
+        <h2>Enter Your Name</h2>
         <input type="text" id="username" placeholder="Type your name...">
-        <input type="password" id="room-password" placeholder="Type secret password...">
-        <button onclick="startChat()">Unlock Chat</button>
+        <button onclick="startChat()">Enter Lounge</button>
     </div>
 
-    <!-- SCREEN 2: ACTIVE LIVE CHAT TIMELINE -->
     <div id="chat-window">
         <header>Our Private Internet Lounge</header>
         <div id="messages"></div>
@@ -51,122 +47,80 @@
 
     <script>
         let myName = localStorage.getItem("lounge_user_name") || "";
-        let savedPass = localStorage.getItem("lounge_password") || "";
-        let globalEndpointUrl = "";
-        let totalMessagesRendered = 0;
+        let chatLogs = [];
 
         window.onload = function() {
-            if (myName && savedPass) {
+            // Load history stored permanently inside local device memory storage logs
+            const savedHistory = localStorage.getItem("lounge_chat_history");
+            if (savedHistory) {
+                chatLogs = JSON.parse(savedHistory);
+            }
+
+            if (myName) {
                 document.getElementById("username").value = myName;
-                document.getElementById("room-password").value = savedPass;
                 startChat();
             }
         };
 
         function startChat() {
             const nameInput = document.getElementById("username").value.trim();
-            const passInput = document.getElementById("room-password").value.trim();
-            if(!nameInput || !passInput) return alert("Please fill out both fields!");
+            if(!nameInput) return alert("Please type your name!");
             
             myName = nameInput.toLowerCase();
-            savedPass = passInput;
             localStorage.setItem("lounge_user_name", myName);
-            localStorage.setItem("lounge_password", savedPass);
             
             document.getElementById("setup").style.display = "none";
             document.getElementById("chat-window").style.display = "flex";
             document.getElementById("message-input").focus();
 
-            // Creates a highly unique, permanent string hash cell link using your secret password
-            const secureHash = btoa(encodeURIComponent(savedPass)).replace(/[^a-zA-Z0-9]/g, "").substring(0, 16);
-            
-            // Native global unblockable proxy server handles data routing bypasses perfectly
-            globalEndpointUrl = `https://allorigins.win{encodeURIComponent('https://val.run_' + secureHash)}`;
-
-            // Launch unblockable immediate polling streams
-            fetchMessagesTimeline();
-            setInterval(fetchMessagesTimeline, 2000);
-        }
-
-        function fetchMessagesTimeline() {
-            if (!globalEndpointUrl) return;
-
-            // Adding a dynamic timestamp cache-breaker to force the browser to look for new messages instantly
-            const cacheBreakerUrl = globalEndpointUrl + encodeURIComponent('&cb=' + Date.now());
-
-            fetch(cacheBreakerUrl)
-                .then(response => {
-                    if (response.ok) return response.json();
-                    throw new Error('Network response stutter.');
-                })
-                .then(data => {
-                    // AllOrigins wraps the response inside a string object named data.contents
-                    const actualHistory = JSON.parse(data.contents);
-                    if (actualHistory && Array.isArray(actualHistory)) {
-                        if (actualHistory.length > totalMessagesRendered) {
-                            const newPackets = actualHistory.slice(totalMessagesRendered);
-                            newPackets.forEach(msg => renderBubble(msg.sender, msg.text));
-                            totalMessagesRendered = actualHistory.length;
-                        }
-                    }
-                })
-                .catch(() => console.log("Synchronizing lounge streams..."));
+            renderChatLayout();
         }
 
         function send() {
             const input = document.getElementById("message-input");
             const text = input.value.trim();
-            if(!text || !globalEndpointUrl) return;
+            if(!text) return;
 
+            // Commit data entry into your local browser window permanently
+            chatLogs.push({ sender: myName, message: text });
+            localStorage.setItem("lounge_chat_history", JSON.stringify(chatLogs));
+            
+            renderChatLayout();
+            
             input.value = "";
             input.focus();
 
-            // Strip out the wrapper to pull the exact underlying target data url coordinates
-            const urlParams = new URLSearchParams(globalEndpointUrl.split('?')[1]);
-            const targetRawUrl = urlParams.get('url');
-
-            // Pull current state array, insert new string message, push back up over simple native HTTP POST
-            fetch(globalEndpointUrl + encodeURIComponent('&cb=' + Date.now()))
-                .then(res => res.json())
-                .then(data => {
-                    let history = [];
-                    try { history = JSON.parse(data.contents); } catch(e) {}
-                    if (!Array.isArray(history)) history = [];
-                    
-                    history.push({ sender: myName, text: text });
-
-                    return fetch(targetRawUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(history)
-                    });
-                })
-                .then(() => fetchMessagesTimeline())
-                .catch(() => console.log("Re-buffering channel data..."));
+            // Direct fallback: generates a WhatsApp transmission layout shortcut link string
+            // This pops open her chat pane with your message filled out instantly!
+            const textPayload = encodeURIComponent(`[${myName}]: ${text}`);
+            window.open(`https://wa.me{textPayload}`, '_blank');
         }
 
-        function renderBubble(sender, text) {
+        function renderChatLayout() {
             const msgArea = document.getElementById("messages");
-            const bubble = document.createElement("div");
-            bubble.classList.add("msg");
+            msgArea.innerHTML = ""; 
+
+            chatLogs.forEach(msg => {
+                const bubble = document.createElement("div");
+                bubble.classList.add("msg");
+                
+                if(msg.sender === myName) {
+                    bubble.classList.add("me");
+                } else {
+                    bubble.classList.add("them");
+                }
+                
+                const nameSpan = document.createElement("span");
+                nameSpan.classList.add("sender-tag");
+                nameSpan.textContent = msg.sender;
+                
+                const textNode = document.createTextNode(msg.message);
+                
+                bubble.appendChild(nameSpan);
+                bubble.appendChild(textNode);
+                msgArea.appendChild(bubble);
+            });
             
-            if(sender === myName) {
-                bubble.classList.add("me");
-            } else {
-                bubble.classList.add("them");
-            }
-            
-            const nameSpan = document.createElement("span");
-            nameSpan.classList.add("sender-tag");
-            nameSpan.textContent = sender;
-            
-            const textNode = document.createTextNode(text);
-            
-            bubble.appendChild(nameSpan);
-            bubble.appendChild(textNode);
-            msgArea.appendChild(bubble);
-            
-            // Keeps the scroll baseline locked to the absolute bottom of the screen layout
             msgArea.scrollTop = msgArea.scrollHeight;
         }
     </script>
