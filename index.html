@@ -8,26 +8,23 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background-color: #efeae2; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
-        /* Intro Registration Screen */
         #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #ffffff; gap: 15px; padding: 20px; text-align: center; }
         #setup h2 { color: #075e54; font-size: 1.6rem; }
         #setup input { padding: 14px; width: 280px; border: 2px solid #e0e0e0; border-radius: 25px; font-size: 1rem; text-align: center; outline: none; }
-        #setup input:focus { border-color: #00a884; }
         #setup button { padding: 12px 30px; background: #00a884; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.15); }
 
-        /* Real-Time Live Chat Screen Layout */
         #chat-window { display: none; flex-direction: column; height: 100vh; }
-        header { background: #075e54; color: white; padding: 16px; text-align: center; font-weight: bold; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        header { background: #075e54; color: white; padding: 16px; text-align: center; font-weight: bold; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: space-between; align-items: center; }
         #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #efeae2; }
         
-        /* Chat Display Bubbles */
         .msg { max-width: 75%; padding: 8px 14px; border-radius: 12px; font-size: 1rem; word-wrap: break-word; line-height: 1.4; box-shadow: 0 1px 2px rgba(0,0,0,0.15); display: flex; flex-direction: column; }
         .sender-tag { font-size: 0.75rem; color: #8696a0; margin-bottom: 4px; font-weight: bold; text-transform: capitalize; }
         
         .me { background-color: #d9fdd3; align-self: flex-end; border-top-right-radius: 0px; }
         .them { background-color: #ffffff; align-self: flex-start; border-top-left-radius: 0px; }
 
-        /* Typography Input Dock Footers */
+        .copy-banner { background-color: #0288d1; color: white; padding: 10px; text-align: center; font-size: 0.9rem; font-weight: bold; display: none; cursor: pointer; }
+
         footer { background: #f0f2f5; padding: 12px 16px; display: flex; gap: 12px; align-items: center; border-top: 1px solid #e3e3e3; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
         footer input { flex: 1; padding: 12px 18px; border: 1px solid #ffffff; border-radius: 25px; outline: none; font-size: 1rem; }
         footer button { background: #00a884; color: white; border: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -35,16 +32,15 @@
 </head>
 <body>
 
-    <!-- PORTAL 1: REGISTRATION ENTRY BLOCK -->
     <div id="setup">
         <h2>Enter Your Name</h2>
         <input type="text" id="username" placeholder="Type your name...">
         <button onclick="startChat()">Open Chat</button>
     </div>
 
-    <!-- PORTAL 2: INTERACTIVE ACTIVE CHAT ROOM -->
     <div id="chat-window">
-        <header>Our Private Internet Lounge</header>
+        <header>Our Private Lounge</header>
+        <div id="copy-notification" class="copy-banner" onclick="copyCurrentLink()">Link updated! Click here to copy and send to her</div>
         <div id="messages"></div>
         <footer>
             <input type="text" id="message-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') send()">
@@ -53,16 +49,23 @@
     </div>
 
     <script>
-        // HARD CODED VERIFIED TARGET ENDPOINT MAPS
-        const GH_USER = "projectsfordahi";
-        const GH_REPO = "our-private-chat";
-        const GH_TOKEN = "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";
-        
         let myName = localStorage.getItem("lounge_user_name") || "";
-        let currentSha = "";
         let chatHistory = [];
 
         window.onload = function() {
+            // Read messages straight out of the website URL address
+            const urlParams = new URLSearchParams(window.location.search);
+            const dataParam = urlParams.get('room');
+            
+            if (dataParam) {
+                try {
+                    const decoded = decodeURIComponent(atob(dataParam));
+                    chatHistory = JSON.parse(decoded);
+                } catch(e) {
+                    console.error("Decoding error");
+                }
+            }
+
             if (myName) {
                 document.getElementById("username").value = myName;
                 startChat();
@@ -80,45 +83,7 @@
             document.getElementById("chat-window").style.display = "flex";
             document.getElementById("message-input").focus();
 
-            // Run direct stream syncing immediately and check every 2 seconds
-            syncMessages();
-            setInterval(syncMessages, 2000);
-        }
-
-        function syncMessages() {
-            fetch(`https://github.com{GH_USER}/${GH_REPO}/contents/history.json`, {
-                headers: { 'Authorization': `token ${GH_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'Cache-Control': 'no-cache' }
-            })
-            .then(res => {
-                if(res.status === 404) {
-                    return createEmptyHistoryFile();
-                }
-                return res.json();
-            })
-            .then(data => {
-                if (!data || !data.content) return;
-                currentSha = data.sha;
-                
-                // Decode file matrix cleanly resolving complex characters strings
-                const decryptedText = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
-                const remoteHistory = JSON.parse(decryptedText);
-                
-                if (remoteHistory.length > chatHistory.length) {
-                    const unread = remoteHistory.slice(chatHistory.length);
-                    unread.forEach(msg => renderBubble(msg.sender, msg.text));
-                    chatHistory = remoteHistory;
-                }
-            })
-            .catch(err => console.log("Sync handshake updating..."));
-        }
-
-        function createEmptyHistoryFile() {
-            const initialData = btoa(unescape(encodeURIComponent(JSON.stringify([]))));
-            return fetch(`https://github.com{GH_USER}/${GH_REPO}/contents/history.json`, {
-                method: 'PUT',
-                headers: { 'Authorization': `token ${GH_TOKEN}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: "initialize chat matrix", content: initialData })
-            });
+            renderChatBubbles();
         }
 
         function send() {
@@ -126,50 +91,59 @@
             const text = input.value.trim();
             if(!text) return;
 
+            // Save text locally
+            chatHistory.push({ sender: myName, message: text });
+            renderChatBubbles();
+
+            // Pack the entire text thread into a clean URL string
+            const jsonString = JSON.stringify(chatHistory);
+            const base64LinkData = btoa(encodeURIComponent(jsonString));
+            
+            const newUrl = window.location.origin + window.location.pathname + "?room=" + base64LinkData;
+            window.history.replaceState({ path: newUrl }, '', newUrl);
+
+            // Pop up the top banner to easily send the text update
+            document.getElementById("copy-notification").style.display = "block";
+
             input.value = "";
             input.focus();
-
-            const updatedHistory = [...chatHistory, { sender: myName, text: text }];
-            const base64Content = btoa(unescape(encodeURIComponent(JSON.stringify(updatedHistory))));
-
-            fetch(`https://github.com{GH_USER}/${GH_REPO}/contents/history.json`, {
-                method: 'PUT',
-                headers: { 'Authorization': `token ${GH_TOKEN}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: "chat log transaction entry",
-                    content: base64Content,
-                    sha: currentSha
-                })
-            })
-            .then(res => {
-                if (res.ok) {
-                    syncMessages();
-                }
-            })
-            .catch(() => console.log("Re-buffering transmission pipeline..."));
         }
 
-        function renderBubble(sender, text) {
+        function renderChatBubbles() {
             const msgArea = document.getElementById("messages");
-            const bubble = document.createElement("div");
-            bubble.classList.add("msg");
+            msgArea.innerHTML = ""; // Clear view to redraw
+
+            chatHistory.forEach(msg => {
+                const bubble = document.createElement("div");
+                bubble.classList.add("msg");
+                
+                if(msg.sender === myName) {
+                    bubble.classList.add("me");
+                } else {
+                    bubble.classList.add("them");
+                }
+                
+                const nameSpan = document.createElement("span");
+                nameSpan.classList.add("sender-tag");
+                nameSpan.textContent = msg.sender;
+                
+                const textNode = document.createTextNode(msg.message);
+                
+                bubble.appendChild(nameSpan);
+                bubble.appendChild(textNode);
+                msgArea.appendChild(bubble);
+            });
             
-            if(sender === myName) {
-                bubble.classList.add("me");
-            } else {
-                bubble.classList.add("them");
-            }
-            
-            const nameSpan = document.createElement("span");
-            nameSpan.classList.add("sender-tag");
-            nameSpan.textContent = sender;
-            
-            const textNode = document.createTextNode(text);
-            
-            bubble.appendChild(nameSpan);
-            bubble.appendChild(textNode);
-            msgArea.appendChild(bubble);
             msgArea.scrollTop = msgArea.scrollHeight;
+        }
+
+        function copyCurrentLink() {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                alert("Link copied! Paste it in your text messages to her.");
+                document.getElementById("copy-notification").style.display = "none";
+            }).catch(() => {
+                alert("Copy failed. Manually copy your browser's address bar link!");
+            });
         }
     </script>
 </body>
