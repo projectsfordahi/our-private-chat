@@ -3,20 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Private Lounge</title>
+    <title>Our Private Lounge</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
         body { background-color: #efeae2; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
         #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #ffffff; gap: 15px; padding: 20px; text-align: center; }
         #setup h2 { color: #075e54; font-size: 1.6rem; }
         #setup input { padding: 14px; width: 280px; border: 2px solid #e0e0e0; border-radius: 25px; font-size: 1rem; text-align: center; outline: none; }
-        #setup input:focus { border-color: #00a884; }
-        #setup button { padding: 12px 30px; background: #00a884; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.15); }
+        #setup button { padding: 12px 30px; background: #00a884; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 1rem; }
 
         #chat-window { display: none; flex-direction: column; height: 100vh; }
-        header { background: #075e54; color: white; padding: 16px; text-align: center; font-weight: bold; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #efeae2; }
+        header { background: #075e54; color: white; padding: 16px; text-align: center; font-weight: bold; font-size: 1.1rem; display: flex; justify-content: space-between; align-items: center; }
+        
+        .sync-tray { background: #f0f2f5; padding: 10px 16px; display: flex; gap: 10px; border-bottom: 1px solid #ddd; align-items: center; }
+        .sync-tray input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+        .sync-btn { background: #0288d1; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.85rem; white-space: nowrap; }
+        
+        #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
         
         .msg { max-width: 75%; padding: 8px 14px; border-radius: 12px; font-size: 1rem; word-wrap: break-word; line-height: 1.4; box-shadow: 0 1px 2px rgba(0,0,0,0.15); display: flex; flex-direction: column; }
         .sender-tag { font-size: 0.75rem; color: #8696a0; margin-bottom: 4px; font-weight: bold; text-transform: capitalize; }
@@ -24,7 +28,7 @@
         .me { background-color: #d9fdd3; align-self: flex-end; border-top-right-radius: 0px; }
         .them { background-color: #ffffff; align-self: flex-start; border-top-left-radius: 0px; }
 
-        footer { background: #f0f2f5; padding: 12px 16px; display: flex; gap: 12px; align-items: center; border-top: 1px solid #e3e3e3; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+        footer { background: #f0f2f5; padding: 12px 16px; display: flex; gap: 12px; align-items: center; border-top: 1px solid #e3e3e3; }
         footer input { flex: 1; padding: 12px 18px; border: 1px solid #ffffff; border-radius: 25px; outline: none; font-size: 1rem; }
         footer button { background: #00a884; color: white; border: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     </style>
@@ -32,14 +36,20 @@
 <body>
 
     <div id="setup">
-        <h2>Enter Chat Details</h2>
+        <h2>Enter Your Name</h2>
         <input type="text" id="username" placeholder="Type your name...">
-        <input type="password" id="room-password" placeholder="Type shared password...">
-        <button onclick="startChat()">Unlock Chat</button>
+        <button onclick="startChat()">Enter Lounge</button>
     </div>
 
     <div id="chat-window">
-        <header>Our Private Internet Lounge</header>
+        <header>Our Private Lounge</header>
+        
+        <div class="sync-tray">
+            <input type="text" id="sync-input" placeholder="Paste her text token here to update...">
+            <button class="sync-btn" onclick="importToken()">Update Chat</button>
+            <button class="sync-btn" style="background:#00a884;" onclick="copyMyToken()">Copy My Token</button>
+        </div>
+
         <div id="messages"></div>
         <footer>
             <input type="text" id="message-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') send()">
@@ -47,102 +57,97 @@
         </footer>
     </div>
 
-    <!-- Light global messaging component layer -->
-    <script src="https://pubnub.com"></script>
-
     <script>
         let myName = localStorage.getItem("lounge_user_name") || "";
-        let savedPass = localStorage.getItem("lounge_password") || "";
-        let pubnubInstance = null;
-        let activeChannelId = "";
-
-        window.onload = function() {
-            if (myName && savedPass) {
-                document.getElementById("username").value = myName;
-                document.getElementById("room-password").value = savedPass;
-                startChat();
-            }
-        };
+        let chatHistory = [];
 
         function startChat() {
             const nameInput = document.getElementById("username").value.trim();
-            const passInput = document.getElementById("room-password").value.trim();
-            
-            if(!nameInput || !passInput) return alert("Please fill out both fields!");
+            if(!nameInput) return alert("Please type your name!");
             
             myName = nameInput.toLowerCase();
-            savedPass = passInput.toLowerCase();
             localStorage.setItem("lounge_user_name", myName);
-            localStorage.setItem("lounge_password", savedPass);
             
             document.getElementById("setup").style.display = "none";
             document.getElementById("chat-window").style.display = "flex";
             document.getElementById("message-input").focus();
 
-            // Unique text network ID calculation based on password entry
-            activeChannelId = "lounge_" + btoa(savedPass).replace(/[^a-zA-Z0-9]/g, "").substring(0, 15);
-
-            // Establish standard text network sync layer
-            pubnubInstance = new PubNub({
-                publishKey: 'pub-c-4e3579ea-cc31-4c74-aa7c-87d8df9fb678',
-                subscribeKey: 'sub-c-11270222-be12-40e1-bbde-47ccba626cb8',
-                userId: myName + "_" + Math.random().toString(36).substring(2, 7)
-            });
-
-            // Add real-time text stream listener rules
-            pubnubInstance.addListener({
-                message: function(event) {
-                    if (event.message && event.message.sender && event.message.text) {
-                        renderBubble(event.message.sender, event.message.text);
-                    }
-                }
-            });
-
-            // Join the private network room channel
-            pubnubInstance.subscribe({
-                channels: [activeChannelId]
-            });
+            renderChatBubbles();
         }
 
         function send() {
             const input = document.getElementById("message-input");
             const text = input.value.trim();
-            if(!text || !pubnubInstance) return;
+            if(!text) return;
+
+            chatHistory.push({ sender: myName, message: text });
+            renderChatBubbles();
 
             input.value = "";
             input.focus();
-
-            // Publish message out cleanly across standard text data protocols
-            pubnubInstance.publish({
-                channel: activeChannelId,
-                message: { sender: myName, text: text }
-            }).catch(() => console.log("Buffering message transmission..."));
         }
 
-        function renderBubble(sender, text) {
+        function renderChatBubbles() {
             const msgArea = document.getElementById("messages");
-            const bubble = document.createElement("div");
-            bubble.classList.add("msg");
+            msgArea.innerHTML = "";
+
+            chatHistory.forEach(msg => {
+                const bubble = document.createElement("div");
+                bubble.classList.add("msg");
+                
+                if(msg.sender === myName) {
+                    bubble.classList.add("me");
+                } else {
+                    bubble.classList.add("them");
+                }
+                
+                const nameSpan = document.createElement("span");
+                nameSpan.classList.add("sender-tag");
+                nameSpan.textContent = msg.sender;
+                
+                const textNode = document.createTextNode(msg.message);
+                
+                bubble.appendChild(nameSpan);
+                bubble.appendChild(textNode);
+                msgArea.appendChild(bubble);
+            });
             
-            if(sender === myName) {
-                bubble.classList.add("me");
-            } else {
-                bubble.classList.add("them");
-            }
-            
-            const nameSpan = document.createElement("span");
-            nameSpan.classList.add("sender-tag");
-            nameSpan.textContent = sender;
-            
-            const textNode = document.createTextNode(text);
-            
-            bubble.appendChild(nameSpan);
-            bubble.appendChild(textNode);
-            msgArea.appendChild(bubble);
             msgArea.scrollTop = msgArea.scrollHeight;
         }
+
+        function copyMyToken() {
+            const jsonString = JSON.stringify(chatHistory);
+            const base64Token = btoa(encodeURIComponent(jsonString));
+            
+            navigator.clipboard.writeText(base64Token).then(() => {
+                alert("Your chat token is copied! Send this text block directly to her in DM.");
+            }).catch(() => {
+                alert("Copy failed. Manually copy the code: " + base64Token);
+            });
+        }
+
+        function importToken() {
+            const tokenInput = document.getElementById("sync-input");
+            const tokenVal = tokenInput.value.trim();
+            if (!tokenVal) return alert("Paste a text token first!");
+
+            try {
+                const decoded = decodeURIComponent(atob(tokenVal));
+                chatHistory = JSON.parse(decoded);
+                renderChatBubbles();
+                tokenInput.value = "";
+                alert("Chat conversation updated successfully!");
+            } catch(e) {
+                alert("Invalid chat token string. Check copying.");
+            }
+        }
+
+        window.onload = function() {
+            if (myName) {
+                document.getElementById("username").value = myName;
+                startChat();
+            }
+        };
     </script>
 </body>
 </html>
-
-
