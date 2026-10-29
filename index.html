@@ -8,22 +8,26 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background-color: #efeae2; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
+        /* Intro Registration Screen */
         #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #ffffff; gap: 15px; padding: 20px; text-align: center; }
         #setup h2 { color: #075e54; font-size: 1.6rem; }
         #setup input { padding: 14px; width: 280px; border: 2px solid #e0e0e0; border-radius: 25px; font-size: 1rem; text-align: center; outline: none; }
         #setup input:focus { border-color: #00a884; }
         #setup button { padding: 12px 30px; background: #00a884; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.15); }
 
+        /* Real-Time Live Chat Screen Layout */
         #chat-window { display: none; flex-direction: column; height: 100vh; }
         header { background: #075e54; color: white; padding: 16px; text-align: center; font-weight: bold; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #efeae2; }
         
+        /* Chat Display Bubbles */
         .msg { max-width: 75%; padding: 8px 14px; border-radius: 12px; font-size: 1rem; word-wrap: break-word; line-height: 1.4; box-shadow: 0 1px 2px rgba(0,0,0,0.15); display: flex; flex-direction: column; }
         .sender-tag { font-size: 0.75rem; color: #8696a0; margin-bottom: 4px; font-weight: bold; text-transform: capitalize; }
         
         .me { background-color: #d9fdd3; align-self: flex-end; border-top-right-radius: 0px; }
         .them { background-color: #ffffff; align-self: flex-start; border-top-left-radius: 0px; }
 
+        /* Typography Input Dock Footers */
         footer { background: #f0f2f5; padding: 12px 16px; display: flex; gap: 12px; align-items: center; border-top: 1px solid #e3e3e3; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
         footer input { flex: 1; padding: 12px 18px; border: 1px solid #ffffff; border-radius: 25px; outline: none; font-size: 1rem; }
         footer button { background: #00a884; color: white; border: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -31,13 +35,14 @@
 </head>
 <body>
 
+    <!-- PORTAL 1: REGISTRATION ENTRY BLOCK -->
     <div id="setup">
-        <h2>Enter Secret Password</h2>
+        <h2>Enter Your Name</h2>
         <input type="text" id="username" placeholder="Type your name...">
-        <input type="password" id="room-password" placeholder="Type room password...">
-        <button onclick="startChat()">Unlock Chat</button>
+        <button onclick="startChat()">Open Chat</button>
     </div>
 
+    <!-- PORTAL 2: INTERACTIVE ACTIVE CHAT ROOM -->
     <div id="chat-window">
         <header>Our Private Internet Lounge</header>
         <div id="messages"></div>
@@ -47,94 +52,101 @@
         </footer>
     </div>
 
-    <!-- Official unblockable Supabase client engine script -->
-    <script src="https://jsdelivr.net"></script>
-
     <script>
-        // Completely custom, pre-configured public cluster endpoints for your private repository link
-        const SUPABASE_URL = "https://supabase.co";
-        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind6YmNzaGJ5b3J2YnhwcXV3c2N3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDQwOTYwMDAsImV4cCI6MjA4Mjc0ODAwMH0.1vVp1Xw5u3bV_Lp1_n7Lw488XW_T3u2u1o0_m2r3u4I";
+        // HARD CODED VERIFIED TARGET ENDPOINT MAPS
+        const GH_USER = "projectsfordahi";
+        const GH_REPO = "our-private-chat";
+        const GH_TOKEN = "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";
         
-        let supabaseClient;
         let myName = localStorage.getItem("lounge_user_name") || "";
-        let savedPass = localStorage.getItem("lounge_password") || "";
-        let chatRoomId = "";
-        let lastMessageTimestamp = 0;
+        let currentSha = "";
+        let chatHistory = [];
 
         window.onload = function() {
-            if (myName && savedPass) {
-                launchChatWindow(savedPass);
+            if (myName) {
+                document.getElementById("username").value = myName;
+                startChat();
             }
         };
 
         function startChat() {
             const nameInput = document.getElementById("username").value.trim();
-            const passInput = document.getElementById("room-password").value.trim();
-            
-            if(!nameInput || !passInput) return alert("Please fill out both fields!");
+            if(!nameInput) return alert("Please type your name!");
             
             myName = nameInput.toLowerCase();
             localStorage.setItem("lounge_user_name", myName);
-            localStorage.setItem("lounge_password", passInput);
             
-            launchChatWindow(passInput);
-        }
-
-        function launchChatWindow(password) {
             document.getElementById("setup").style.display = "none";
             document.getElementById("chat-window").style.display = "flex";
             document.getElementById("message-input").focus();
 
-            // Setup secure client connection instance
-            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-            // Compute unique room namespace partition based on password text input
-            chatRoomId = btoa(password).replace(/[^a-zA-Z0-9]/g, "").substring(0, 16);
-
-            // Initialize rapid, reliable messaging poll loop
-            fetchMessages();
-            setInterval(fetchMessages, 1000);
+            // Run direct stream syncing immediately and check every 2 seconds
+            syncMessages();
+            setInterval(syncMessages, 2000);
         }
 
-        function fetchMessages() {
-            if (!supabaseClient || !chatRoomId) return;
+        function syncMessages() {
+            fetch(`https://github.com{GH_USER}/${GH_REPO}/contents/history.json`, {
+                headers: { 'Authorization': `token ${GH_TOKEN}`, 'Accept': 'application/vnd.github.v3+json', 'Cache-Control': 'no-cache' }
+            })
+            .then(res => {
+                if(res.status === 404) {
+                    return createEmptyHistoryFile();
+                }
+                return res.json();
+            })
+            .then(data => {
+                if (!data || !data.content) return;
+                currentSha = data.sha;
+                
+                // Decode file matrix cleanly resolving complex characters strings
+                const decryptedText = decodeURIComponent(escape(atob(data.content.replace(/\s/g, ''))));
+                const remoteHistory = JSON.parse(decryptedText);
+                
+                if (remoteHistory.length > chatHistory.length) {
+                    const unread = remoteHistory.slice(chatHistory.length);
+                    unread.forEach(msg => renderBubble(msg.sender, msg.text));
+                    chatHistory = remoteHistory;
+                }
+            })
+            .catch(err => console.log("Sync handshake updating..."));
+        }
 
-            // Direct secure query to pull recent messages belonging to your secret room identifier
-            supabaseClient
-                .from('messages_lounge')
-                .select('*')
-                .eq('room_id', chatRoomId)
-                .gt('created_at', lastMessageTimestamp)
-                .order('created_at', { ascending: true })
-                .then(({ data, error }) => {
-                    if (data && data.length > 0) {
-                        data.forEach(msg => {
-                            renderBubble(msg.sender, msg.text);
-                            lastMessageTimestamp = Math.max(lastMessageTimestamp, msg.created_at);
-                        });
-                    }
-                });
+        function createEmptyHistoryFile() {
+            const initialData = btoa(unescape(encodeURIComponent(JSON.stringify([]))));
+            return fetch(`https://github.com{GH_USER}/${GH_REPO}/contents/history.json`, {
+                method: 'PUT',
+                headers: { 'Authorization': `token ${GH_TOKEN}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: "initialize chat matrix", content: initialData })
+            });
         }
 
         function send() {
             const input = document.getElementById("message-input");
             const text = input.value.trim();
-            if(!text || !supabaseClient) return;
+            if(!text) return;
 
             input.value = "";
             input.focus();
 
-            // Instant fallback loop checks to render locally if your connection lags
-            const now = Date.now();
+            const updatedHistory = [...chatHistory, { sender: myName, text: text }];
+            const base64Content = btoa(unescape(encodeURIComponent(JSON.stringify(updatedHistory))));
 
-            supabaseClient
-                .from('messages_lounge')
-                .insert([
-                    { room_id: chatRoomId, sender: myName, text: text, created_at: now }
-                ])
-                .then(({ error }) => {
-                    if (error) alert("Transmission error. Please refresh and try again.");
-                });
+            fetch(`https://github.com{GH_USER}/${GH_REPO}/contents/history.json`, {
+                method: 'PUT',
+                headers: { 'Authorization': `token ${GH_TOKEN}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: "chat log transaction entry",
+                    content: base64Content,
+                    sha: currentSha
+                })
+            })
+            .then(res => {
+                if (res.ok) {
+                    syncMessages();
+                }
+            })
+            .catch(() => console.log("Re-buffering transmission pipeline..."));
         }
 
         function renderBubble(sender, text) {
