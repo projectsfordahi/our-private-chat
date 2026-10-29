@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Our Private Lounge</title>
+    <title>Private Lounge</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background-color: #efeae2; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
@@ -34,7 +34,7 @@
     <div id="setup">
         <h2>Enter Chat Details</h2>
         <input type="text" id="username" placeholder="Type your name...">
-        <input type="password" id="room-password" placeholder="Type shared room password...">
+        <input type="password" id="room-password" placeholder="Type shared password...">
         <button onclick="startChat()">Unlock Chat</button>
     </div>
 
@@ -47,11 +47,14 @@
         </footer>
     </div>
 
+    <!-- Light global messaging component layer -->
+    <script src="https://pubnub.com"></script>
+
     <script>
         let myName = localStorage.getItem("lounge_user_name") || "";
         let savedPass = localStorage.getItem("lounge_password") || "";
-        let privateTopicId = "";
-        let streamSource = null;
+        let pubnubInstance = null;
+        let activeChannelId = "";
 
         window.onload = function() {
             if (myName && savedPass) {
@@ -76,55 +79,44 @@
             document.getElementById("chat-window").style.display = "flex";
             document.getElementById("message-input").focus();
 
-            // Generate an incredibly unique internet stream room ID using your password
-            const hashedRoom = btoa(savedPass).replace(/[^a-zA-Z0-9]/g, "").substring(0, 20);
-            privateTopicId = "lounge_couple_room_" + hashedRoom;
+            // Unique text network ID calculation based on password entry
+            activeChannelId = "lounge_" + btoa(savedPass).replace(/[^a-zA-Z0-9]/g, "").substring(0, 15);
 
-            connectToLiveStream();
-        }
+            // Establish standard text network sync layer
+            pubnubInstance = new PubNub({
+                publishKey: 'pub-c-4e3579ea-cc31-4c74-aa7c-87d8df9fb678',
+                subscribeKey: 'sub-c-11270222-be12-40e1-bbde-47ccba626cb8',
+                userId: myName + "_" + Math.random().toString(36).substring(2, 7)
+            });
 
-        function connectToLiveStream() {
-            if (streamSource) streamSource.close();
-
-            // Open a native browser live stream pipeline (Unblockable by all systems)
-            streamSource = new EventSource(`https://ntfy.sh{privateTopicId}/sse`);
-
-            streamSource.onmessage = function(event) {
-                try {
-                    const eventData = JSON.parse(event.data);
-                    // ntfy wraps incoming messages in a standard body container
-                    if (eventData.message) {
-                        const chatPayload = JSON.parse(eventData.message);
-                        if (chatPayload.sender && chatPayload.text) {
-                            renderBubble(chatPayload.sender, chatPayload.text);
-                        }
+            // Add real-time text stream listener rules
+            pubnubInstance.addListener({
+                message: function(event) {
+                    if (event.message && event.message.sender && event.message.text) {
+                        renderBubble(event.message.sender, event.message.text);
                     }
-                } catch (e) {
-                    // Filter out network heartbeat markers
                 }
-            };
+            });
 
-            // Auto-reconnect if data connection stutters
-            streamSource.onerror = function() {
-                setTimeout(connectToLiveStream, 2000);
-            };
+            // Join the private network room channel
+            pubnubInstance.subscribe({
+                channels: [activeChannelId]
+            });
         }
 
         function send() {
             const input = document.getElementById("message-input");
             const text = input.value.trim();
-            if(!text || !privateTopicId) return;
+            if(!text || !pubnubInstance) return;
 
             input.value = "";
             input.focus();
 
-            // Package the text and push it out instantly via a standard secure data packet
-            const packet = JSON.stringify({ sender: myName, text: text });
-
-            fetch(`https://ntfy.sh{privateTopicId}`, {
-                method: 'POST',
-                body: packet
-            }).catch(() => alert("Network stutter. Message will auto-retry."));
+            // Publish message out cleanly across standard text data protocols
+            pubnubInstance.publish({
+                channel: activeChannelId,
+                message: { sender: myName, text: text }
+            }).catch(() => console.log("Buffering message transmission..."));
         }
 
         function renderBubble(sender, text) {
@@ -152,4 +144,5 @@
     </script>
 </body>
 </html>
+
 
