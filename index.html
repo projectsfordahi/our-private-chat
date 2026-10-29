@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Our Private Lounge</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background-color: #efeae2; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #ffffff; gap: 15px; padding: 20px; text-align: center; }
+        #setup h2 { color: #075e54; font-size: 1.6rem; }
+        #setup input { padding: 14px; width: 280px; border: 2px solid #e0e0e0; border-radius: 25px; font-size: 1rem; text-align: center; outline: none; }
+        #setup input:focus { border-color: #00a884; }
+        #setup button { padding: 12px 30px; background: #00a884; color: white; border: none; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.15); }
+
+        #chat-window { display: none; flex-direction: column; height: 100vh; }
+        header { background: #075e54; color: white; padding: 16px; text-align: center; font-weight: bold; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #efeae2; }
+        
+        .msg { max-width: 75%; padding: 8px 14px; border-radius: 12px; font-size: 1rem; word-wrap: break-word; line-height: 1.4; box-shadow: 0 1px 2px rgba(0,0,0,0.15); display: flex; flex-direction: column; }
+        .sender-tag { font-size: 0.75rem; color: #8696a0; margin-bottom: 4px; font-weight: bold; text-transform: capitalize; }
+        
+        .me { background-color: #d9fdd3; align-self: flex-end; border-top-right-radius: 0px; }
+        .them { background-color: #ffffff; align-self: flex-start; border-top-left-radius: 0px; }
+
+        footer { background: #f0f2f5; padding: 12px 16px; display: flex; gap: 12px; align-items: center; border-top: 1px solid #e3e3e3; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+        footer input { flex: 1; padding: 12px 18px; border: 1px solid #ffffff; border-radius: 25px; outline: none; font-size: 1rem; }
+        footer button { background: #00a884; color: white; border: none; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+
+    <div id="setup">
+        <h2>Our Private Space</h2>
+        <input type="text" id="username" placeholder="Type your name...">
+        <input type="password" id="room-password" placeholder="Type room password...">
+        <button onclick="startChat()">Unlock Chat</button>
+    </div>
+
+    <div id="chat-window">
+        <header>Our Private Internet Lounge</header>
+        <div id="messages"></div>
+        <footer>
+            <input type="text" id="message-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter') send()">
+            <button onclick="send()">➔</button>
+        </footer>
+    </div>
+
+    <script>
+        let myName = localStorage.getItem("lounge_user_name") || "";
+        let savedPass = localStorage.getItem("lounge_password") || "";
+        let secretRoomUrl = "";
+        let totalRendered = 0;
+
+        window.onload = function() {
+            if (myName && savedPass) {
+                launchChatWindow(savedPass);
+            }
+        };
+
+        function startChat() {
+            const nameInput = document.getElementById("username").value.trim();
+            const passInput = document.getElementById("room-password").value.trim();
+            
+            if(!nameInput || !passInput) return alert("Please fill out both fields!");
+            
+            myName = nameInput.toLowerCase();
+            localStorage.setItem("lounge_user_name", myName);
+            localStorage.setItem("lounge_password", passInput);
+            
+            launchChatWindow(passInput);
+        }
+
+        function launchChatWindow(password) {
+            document.getElementById("setup").style.display = "none";
+            document.getElementById("chat-window").style.display = "flex";
+            document.getElementById("message-input").focus();
+
+            const secureBucketId = btoa(password).replace(/[^a-zA-Z0-9]/g, "").substring(0, 15);
+            secretRoomUrl = `https://val.run{secureBucketId}`;
+
+            syncChatFeed();
+            setInterval(syncChatFeed, 1000);
+        }
+
+        function syncChatFeed() {
+            if (!secretRoomUrl) return;
+
+            fetch(secretRoomUrl)
+                .then(res => res.json())
+                .then(history => {
+                    if (history && Array.isArray(history)) {
+                        if (history.length > totalRendered) {
+                            const unreadMessages = history.slice(totalRendered);
+                            unreadMessages.forEach(msg => renderBubble(msg.sender, msg.text));
+                            totalRendered = history.length;
+                        }
+                    }
+                })
+                .catch(() => console.log("Syncing database..."));
+        }
+
+        function send() {
+            const input = document.getElementById("message-input");
+            const text = input.value.trim();
+            if(!text || !secretRoomUrl) return;
+
+            input.value = "";
+            input.focus();
+
+            fetch(secretRoomUrl)
+                .then(res => res.json())
+                .then(currentHistory => {
+                    let timeline = Array.isArray(currentHistory) ? currentHistory : [];
+                    timeline.push({ sender: myName, text: text });
+
+                    return fetch(secretRoomUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(timeline)
+                    });
+                })
+                .then(() => syncChatFeed())
+                .catch(() => alert("Network transmission blocked. Please refresh your page."));
+        }
+
+        function renderBubble(sender, text) {
+            const msgArea = document.getElementById("messages");
+            const bubble = document.createElement("div");
+            bubble.classList.add("msg");
+            
+            if(sender === myName) {
+                bubble.classList.add("me");
+            } else {
+                bubble.classList.add("them");
+            }
+            
+            const nameSpan = document.createElement("span");
+            nameSpan.classList.add("sender-tag");
+            nameSpan.textContent = sender;
+            
+            const textNode = document.createTextNode(text);
+            
+            bubble.appendChild(nameSpan);
+            bubble.appendChild(textNode);
+            msgArea.appendChild(bubble);
+            msgArea.scrollTop = msgArea.scrollHeight;
+        }
+    </script>
+</body>
+</html>
